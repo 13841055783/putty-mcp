@@ -1,9 +1,9 @@
-"""Send commands to an open PuTTY window.
+"""向已打开的 PuTTY 窗口发送命令。
 
-Delivers text either via clipboard paste (IDM_PASTE — reliable for long
-lines) or WM_CHAR (needed for control characters such as Ctrl+C).
-Messages go straight to the PuTTY hwnd, so the window is not restored,
-raised, or focused. Requires pywin32 on Windows.
+通过剪贴板粘贴（IDM_PASTE，适合长命令行）或 WM_CHAR 发送文本；
+Ctrl+C 等控制字符需要通过 WM_CHAR 发送。
+消息直接发送到 PuTTY 窗口句柄，不恢复窗口、不置顶，也不切换焦点。
+依赖 Windows 环境中的 pywin32。
 """
 
 from __future__ import annotations
@@ -66,25 +66,25 @@ else:
 
         WM_CHAR = 0x0102
         WM_SYSCOMMAND = 0x0112
-        # PuTTY system-menu IDs from windows/window.c in upstream PuTTY.
+        # PuTTY 系统菜单命令 ID，取自上游源码 windows/window.c。
         IDM_CLRSB = 0x0060
         IDM_PASTE = 0x01A0
 
-        # Paste is used for normal text. Per-character WM_CHAR was truncating
-        # long remote shell lines (tty line discipline / soft-wrap interaction),
-        # which left ash waiting on a ">" continuation prompt.
+        # 普通文本使用粘贴发送。此前逐字符 WM_CHAR 发送长命令时，
+        # 终端行规程与自动换行的交互会导致命令截断，
+        # 使 ash 停留在“>”续行提示符处等待输入。
         _PASTE_MIN_LEN = 1
 
         _CHAR_DELAY_S = 0.01
         _PASTE_DELAY_S = 0.15
 
         def _command_needs_wm_char(command: str) -> bool:
-            """True when paste cannot represent the payload (control chars)."""
+            """当内容无法通过粘贴表达（如包含控制字符）时返回 True。"""
             if not command:
                 return True
             for ch in command:
                 code = ord(ch)
-                # Allow tab/newline; everything else below space must be typed.
+                # 允许制表符、换行和回车；其余编码小于空格的控制字符必须逐字符发送。
                 if code < 32 and ch not in ("\t", "\n", "\r"):
                     return True
             return False
@@ -119,17 +119,17 @@ else:
                 time.sleep(_CHAR_DELAY_S)
 
         def _send_with_paste(hwnd: int, command: str, append_newline: bool) -> str:
-            """Paste via PuTTY IDM_PASTE; restore previous clipboard afterwards.
+            """通过 PuTTY 的 IDM_PASTE 粘贴文本，随后恢复之前保存的剪贴板文本。
 
-            Returns the delivery method label for the response payload.
+            返回发送方式标识，供工具响应使用。
             """
             old = _clipboard_get_text()
             try:
                 _clipboard_set_text(command)
-                # Same path as Copy All / Clear Scrollback: system-menu command ID.
+                # 与全部复制、清空滚动历史相同，通过系统菜单命令 ID 触发操作。
                 win32gui.PostMessage(hwnd, WM_SYSCOMMAND, IDM_PASTE, 0)
-                # Give PuTTY time to read the clipboard and inject the paste buffer.
-                # Scale slightly with length so very large pastes are not raced.
+                # 等待 PuTTY 读取剪贴板并将粘贴内容送入终端。
+                # 根据文本长度略微延长等待，避免大段粘贴时发生时序竞争。
                 time.sleep(_PASTE_DELAY_S + min(len(command), 4000) * 0.00005)
                 if append_newline:
                     win32gui.SendMessage(hwnd, WM_CHAR, 13, 0)
@@ -163,16 +163,16 @@ else:
             hwnd = resolved["hwnd"]
             title = resolved.get("title", "")
             method = "wm_char"
-            # Paste and WM_CHAR are addressed to this hwnd. Do not restore,
-            # raise, or focus the window: SW_RESTORE shrinks a maximized
-            # PuTTY, and SetForegroundWindow steals the user's focus.
+            # 粘贴和 WM_CHAR 均直接发送到目标窗口句柄，无需恢复、置顶或切换焦点。
+            # SW_RESTORE 会使最大化的 PuTTY 恢复原尺寸，
+            # SetForegroundWindow 则会抢占用户当前的输入焦点。
             try:
                 activated = win32gui.GetForegroundWindow() == hwnd
             except Exception:
                 activated = False
             try:
-                # Prefer clipboard paste for normal text: bulk paste avoids the
-                # mid-line truncation that WM_CHAR streams hit on long shell lines.
+                # 普通文本优先使用剪贴板批量粘贴，避免逐字符 WM_CHAR
+                # 发送长命令行时发生中途截断。
                 if (
                     len(command) >= _PASTE_MIN_LEN
                     and not _command_needs_wm_char(command)
@@ -196,7 +196,7 @@ else:
             title_substring: str | None = None,
             process_id: int | None = None,
         ) -> dict[str, Any]:
-            """Clear PuTTY scrollback/history in a locale-independent way."""
+            """通过不依赖界面语言的方式清空 PuTTY 滚动历史。"""
             resolved = window_reader.resolve_putty_window(
                 host=host,
                 title_substring=title_substring,
@@ -213,7 +213,7 @@ else:
             title = resolved.get("title", "")
 
             try:
-                # Locale-independent: call PuTTY's clear-scrollback command ID directly.
+                # 直接调用 PuTTY 清空滚动历史的命令 ID，不依赖界面语言。
                 win32gui.PostMessage(hwnd, WM_SYSCOMMAND, IDM_CLRSB, 0)
                 time.sleep(0.1)
             except Exception as e:

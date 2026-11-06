@@ -1,1 +1,1 @@
-"""PuTTY MCP helpers for window list/read/send tools."""
+"""为 PuTTY MCP 提供窗口枚举、内容读取和命令发送辅助功能。"""

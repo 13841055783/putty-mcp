@@ -1,19 +1,20 @@
-# Python
+# Python 缓存与构建产物
 __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
+.idea
 
-# Environment
+# 环境配置
 .env
 
-# Project notes (local-specific)
+# 本地项目说明
 CLAUDE.md
 
-# Logs
+# 日志文件
 *.log
 
-# OS
+# 操作系统生成的文件
 nul
 Thumbs.db
 Desktop.ini

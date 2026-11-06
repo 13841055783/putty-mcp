@@ -1,7 +1,7 @@
-"""Chunked upload of text/binary payloads into a remote path via PuTTY.
+"""通过 PuTTY 将文本或二进制数据分块写入远程路径。
 
-Remote tty line length (often ~512 on BusyBox) cannot accept multi-KB one-liners.
-This module writes the file in small `printf` chunks instead.
+远程终端的行长度限制（BusyBox 环境通常约为 512）无法容纳数 KB 的单行命令。
+因此，本模块使用多条短 printf 命令分块写入文件。
 """
 
 from __future__ import annotations
@@ -12,20 +12,20 @@ from typing import Any, Literal
 
 Encoding = Literal["shell", "hex"]
 
-# Keep each shell command well under typical BusyBox MAX_CANON (~512).
+# 让每条 shell 命令的长度明显低于 BusyBox 常见的 MAX_CANON 限制（约 512）。
 _DEFAULT_SHELL_CHUNK = 120
-_DEFAULT_HEX_CHUNK = 40  # bytes -> 160 hex escape chars
+_DEFAULT_HEX_CHUNK = 40  # 40 字节转换后占 160 个十六进制转义字符。
 _CHUNK_DELAY_S = 0.08
 _SETTLE_S = 0.25
 
 
 def _shell_single_quote(text: str) -> str:
-    """Wrap text for a POSIX single-quoted string (no NULs)."""
+    """将文本转义并包裹为 POSIX 单引号字符串，不支持 NUL 字符。"""
     return "'" + text.replace("'", "'\\''") + "'"
 
 
 def _hex_printf_payload(data: bytes) -> str:
-    """Encode bytes as busybox-friendly printf %b escapes: \\xHH\\xHH..."""
+    """将字节编码为 BusyBox 兼容的 printf %b 转义序列：\\xHH\\xHH...。"""
     return "".join(f"\\x{b:02x}" for b in data)
 
 
@@ -57,11 +57,11 @@ else:
         chunk_size: int | None = None,
         verify: bool = True,
     ) -> dict[str, Any]:
-        """Write content to remote_path using many short printf appends.
+        """使用多条短 printf 命令，将内容分块追加到 remote_path。
 
-        encoding:
-          - shell: UTF-8 text in single-quoted printf chunks (fast; no NUL bytes)
-          - hex: binary-safe \\xHH escapes via printf %b (no remote base64 needed)
+        encoding 参数说明：
+          - shell：通过单引号包裹的 printf 分块写入 UTF-8 文本，速度较快，不支持 NUL 字节。
+          - hex：通过 printf %b 写入 \\xHH 转义序列，可安全传输二进制数据，无需远程 base64 命令。
         """
         if not remote_path or remote_path.startswith("-"):
             return {"success": False, "error": "remote_path must be a non-empty absolute/relative path."}
@@ -146,7 +146,7 @@ else:
             time.sleep(0.8)
             read = window_reader.read_putty_window(**selector)
             content_out = read.get("content") or ""
-            # Parse the number on the line before the marker when possible.
+            # 尝试从标记之前的文本行中解析远程文件字节数。
             if marker in content_out:
                 before = content_out.rsplit(marker, 1)[0]
                 for line in reversed(before.splitlines()):

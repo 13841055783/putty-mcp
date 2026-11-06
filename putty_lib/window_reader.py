@@ -1,7 +1,7 @@
-"""Read text from an open PuTTY window via 'Copy All to Clipboard'.
+"""通过“全部复制到剪贴板”读取已打开 PuTTY 窗口中的文本。
 
-Uses Windows API: find PuTTY windows, send WM_SYSCOMMAND with IDM_COPYALL (0x0170),
-then read clipboard. Requires pywin32 on Windows.
+使用 Windows API 查找 PuTTY 窗口，发送携带 IDM_COPYALL（0x0170）的
+WM_SYSCOMMAND 消息，再读取剪贴板。依赖 Windows 环境中的 pywin32。
 """
 
 from __future__ import annotations
@@ -58,7 +58,7 @@ else:
                 "content": None,
             }
     else:
-        # PuTTY system menu: "Copy All to Clipboard" = IDM_COPYALL 0x0170
+        # PuTTY 系统菜单中的“全部复制到剪贴板”对应 IDM_COPYALL（0x0170）。
         IDM_COPYALL = 0x0170
         WM_SYSCOMMAND = 0x0112
 
@@ -103,7 +103,7 @@ else:
             title_substring: str | None = None,
             process_id: int | None = None,
         ) -> dict[str, Any]:
-            """Pick one PuTTY window. Returns dict with hwnd, title, and optional error."""
+            """选择一个 PuTTY 窗口，返回包含 hwnd、标题或错误信息的字典。"""
             candidates = list_putty_windows()
             if not candidates:
                 return {"success": False, "error": "No PuTTY windows found.", "windows": []}
@@ -164,7 +164,7 @@ else:
                     "content": None,
                     "windows": [{"title": w["title"], "pid": w["pid"]} for w in candidates],
                 }
-            # Save current clipboard
+            # 保存当前剪贴板中的文本。
             try:
                 win32clipboard.OpenClipboard()
                 try:
@@ -178,7 +178,7 @@ else:
                     win32clipboard.CloseClipboard()
                 except Exception:
                     pass
-            # Ask PuTTY to copy all
+            # 请求 PuTTY 将屏幕及滚动历史文本全部复制到剪贴板。
             import time as _time
             win32gui.PostMessage(hwnd, WM_SYSCOMMAND, IDM_COPYALL, 0)
             _time.sleep(0.3)
@@ -196,7 +196,7 @@ else:
                     win32clipboard.CloseClipboard()
                 except Exception:
                     pass
-            # Restore previous clipboard
+            # 恢复之前保存的剪贴板文本。
             if old is not None:
                 try:
                     win32clipboard.OpenClipboard()
